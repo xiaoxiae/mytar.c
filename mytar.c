@@ -1,16 +1,3 @@
-// # My tar.
-// A solution to the C programming language course assignment.
-// - https://github.com/devnull-cz/c-prog-lang/blob/master/getting-credits/2020/assignment.txt
-//
-// ## Resources
-// - https://pubs.opengroup.org/onlinepubs/9699919799/utilities/pax.html#tag_20_92_13_06
-// - https://www.gnu.org/software/tar/manual/html_node/Standard.html
-// - https://www.gnu.org/software/tar/manual/html_section/tar_67.html
-//
-// ## Notes to myself
-// - C stdio file API must be used 
-// - use of getopt(3) not allowed
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
