@@ -1,5 +1,3 @@
-// TODO print to stderr
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -150,12 +148,13 @@ int main(int argc, char *argv[]) {
 
 			// if we parsed some file names, check if they match first (only then print)
 			if (pargs_counter != 0) {
-				for (int i = 0; i < pargs_counter; i++)
+				for (int i = 0; i < pargs_counter; i++) {
 					if (strcmp(header->name, pargs[i]) == 0 && !used_pargs[i]) {
 						used_pargs[i] = 1;
 						printf("%s\n", header->name);
 						break;
 					}
+				}
 			} else
 				printf("%s\n", header->name);
 
