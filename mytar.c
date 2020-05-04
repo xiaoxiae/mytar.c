@@ -90,6 +90,13 @@ int file_in_pargs(int pargs_counter, char** pargs, int* used_pargs, char* name) 
 	return 0;
 }
 
+/* An enum of currently supported actions. */
+enum actions {
+	none,
+	list,
+	extract
+};
+
 
 int main(int argc, char *argv[]) {
 	// prevent buffering to not mess with printf and errx/warnx order
@@ -103,7 +110,7 @@ int main(int argc, char *argv[]) {
 	char** pargs = malloc_with_error(sizeof(char*) * argc);
 
 	// information regarding tar options
-	char action = ' ';
+	enum actions action = none;
 	char* file;
 	bool verbose = false;
 
@@ -123,8 +130,11 @@ int main(int argc, char *argv[]) {
 
 				// action options
 				case 't':
+					action = list;
+					break;
+
 				case 'x':
-					action = argv[i][1];
+					action = extract;
 					break;
 
 				// verbosity flag
@@ -143,7 +153,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	// if no action was parsed, don't do anything
-	if (action == ' ')
+	if (action == none)
 		errx(2, "invalid invocation.");
 
 	FILE *fp;
@@ -222,7 +232,7 @@ int main(int argc, char *argv[]) {
 		);
 
 		// only print the name if either -t or verbose -x is specified
-		if (name_found && (action == 't' || (action == 'x' && verbose)))
+		if (name_found && (action == list || (action == extract && verbose)))
 			printf("%s\n", header->name);
 
 		// get the number of logical records in the file (to skip or write)
@@ -230,7 +240,7 @@ int main(int argc, char *argv[]) {
 		long int header_offset = (header_size + (LR_SIZE - 1)) / LR_SIZE;
 		header_count += header_offset;
 
-		if (action == 't') {
+		if (action == list) {
 			fseek_with_error(fp, header_offset * LR_SIZE, SEEK_CUR);
 
 			// check if we didn't accidentaly seek past the file size
@@ -239,7 +249,7 @@ int main(int argc, char *argv[]) {
 				errx(2, "Error is not recoverable: exiting now");
 			}
 		}
-		else if (action == 'x') {
+		else if (action == extract) {
 			FILE *fout = fopen(header->name, "w");
 
 			// read from *fp LR_SIZE by LR_SIZE
