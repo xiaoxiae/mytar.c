@@ -226,7 +226,7 @@ int main(int argc, char *argv[]) {
 
 		// if there are either no pargs or the file is one of them, do something
 		// with the file (print, extract...)
-		int name_found = (
+		bool name_found = (
 			pargs_counter == 0
 			|| file_in_pargs(pargs_counter, pargs, used_pargs, header->name)
 		);
