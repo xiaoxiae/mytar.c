@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <err.h>
 
 // the size of a single logical record
@@ -104,7 +105,7 @@ int main(int argc, char *argv[]) {
 	// information regarding tar options
 	char action = ' ';
 	char* file;
-	int verbose = 0;
+	bool verbose = false;
 
 	// parse the arguments
 	for (int i = 1; i < argc; i++) {
@@ -128,7 +129,7 @@ int main(int argc, char *argv[]) {
 
 				// verbosity flag
 				case 'v':
-					verbose = 1;
+					verbose = true;
 					break;
 
 				default:
@@ -154,7 +155,7 @@ int main(int argc, char *argv[]) {
 	// to determine, if we read past the end or not
 	int fs = get_file_size(fp);
 
-	int prev_header_empty  = 0;  // whether the last l record was empty
+	bool prev_header_empty  = false;  // whether the last l record was empty
 	int header_count = 0;        // how many logical records have we read?
 
 	// note, which file names were in the archive and which were not
@@ -164,8 +165,8 @@ int main(int argc, char *argv[]) {
 	// read logical records, one by one
 	struct Header* header = malloc_with_error(sizeof(char) * LR_SIZE);
 
-	// for checking the first logical record
-	int first_record = 1;
+	// for checking the first logical record (whether we're reading a tar file or not)
+	bool first_record = true;
 
 	while (1) {
 		// read the next logical record
@@ -189,7 +190,7 @@ int main(int argc, char *argv[]) {
 				errx(2, "Exiting with failure status due to previous errors");
 			}
 
-			first_record = 0;
+			first_record = false;
 		}
 
 		// check for empty/non-empty header
@@ -198,7 +199,7 @@ int main(int argc, char *argv[]) {
 			if (prev_header_empty)
 				break;
 
-			prev_header_empty  = 1;
+			prev_header_empty = true;
 			continue;
 		}
 		else {
@@ -206,7 +207,7 @@ int main(int argc, char *argv[]) {
 			if (prev_header_empty)
 				warnx("A lone zero block at %d", header_count);
 
-			prev_header_empty  = 0;
+			prev_header_empty  = false;
 		}
 
 		// exit if the archive contains anything but regular files
@@ -260,11 +261,11 @@ int main(int argc, char *argv[]) {
 	}
 	
 	// check, if we found all filenames in the archive
-	int found = 0;
+	bool found = false;
 	for (int i = 0; i < pargs_counter; i++) {
 		if (used_pargs[i] == 0) {
 			warnx("%s: Not found in archive", pargs[i]);
-			found = 1;
+			found = true;
 		}
 	}
 
