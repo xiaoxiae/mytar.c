@@ -4,11 +4,10 @@
 #include <stdbool.h>
 #include <err.h>
 
-// the size of a single logical record
-#define LR_SIZE 512
-#define SIZE_OCTETS 12
 
-// the header logical record structure
+#define LR_SIZE 512     // size of a single logical record
+#define SIZE_OCTETS 12  // size of the 'size' value in the logical record
+
 struct Header {
 	char name[100];
 	char mode[8];
@@ -105,7 +104,7 @@ int main(int argc, char *argv[]) {
 	if (argc == 1)
 		errx(2, "invalid invocation.");
 
-	// allocate enough space for plain arguments (might be more than necessary)
+	// plain arguments variables
 	int pargs_counter = 0;
 	char** pargs = malloc_with_error(sizeof(char*) * argc);
 
@@ -116,11 +115,8 @@ int main(int argc, char *argv[]) {
 
 	// parse the arguments
 	for (int i = 1; i < argc; i++) {
-		// if it starts with a '-', it's a flag
-		// currently only a few flags are supported
 		if (argv[i][0] == '-') {
 			switch(argv[i][1]) {
-				// file option
 				case 'f':
 					if (i + 1 == argc)
 						errx(2, "option requires an argument -- 'f'");
@@ -128,7 +124,6 @@ int main(int argc, char *argv[]) {
 					file = argv[++i];
 					break;
 
-				// action options
 				case 't':
 					action = list;
 					break;
@@ -137,7 +132,6 @@ int main(int argc, char *argv[]) {
 					action = extract;
 					break;
 
-				// verbosity flag
 				case 'v':
 					verbose = true;
 					break;
@@ -145,53 +139,44 @@ int main(int argc, char *argv[]) {
 				default:
 					errx(2, "flag %s not recognized.", argv[i]);
 			}
-			continue;
 		}
-
-		// save plain arguments
-		pargs[pargs_counter++] = argv[i];
+		else
+			pargs[pargs_counter++] = argv[i];
 	}
 
-	// if no action was parsed, don't do anything
 	if (action == none)
 		errx(2, "invalid invocation.");
 
 	FILE *fp;
 
-	// attempt to open the file
 	if ((fp = fopen(file, "r")) == NULL)
 		errx(2, "%s: Cannot open: No such file or directory", file);
 
 	// to determine, if we read past the end or not
 	int fs = get_file_size(fp);
 
-	bool prev_header_empty  = false;  // whether the last l record was empty
-	int header_count = 0;        // how many logical records have we read?
+	bool first_record = true;         // for checks on the first LR
+	bool prev_header_empty  = false;  // whether the LR was empty
+	int lr_count = 0;                 // number of read records
 
-	// note, which file names were in the archive and which were not
-	// we're using calloc, since we want the array to contain zeros
+	// remember which file names were in the archive and which were not (for warnings)
 	int* used_pargs = calloc_with_error(pargs_counter, sizeof(int));
 	
-	// read logical records, one by one
 	struct Header* header = malloc_with_error(sizeof(char) * LR_SIZE);
-
-	// for checking the first logical record (whether we're reading a tar file or not)
-	bool first_record = true;
-
-	while (1) {
+	while (true) {
 		// read the next logical record
 		int read = fread(header, sizeof(char), LR_SIZE, fp);
-		header_count++;
 
-		// we haven't read anything
 		if (read == 0) {
-			// crash on a singular empty logical record being read
+			// warn when ending on a singular LR
 			if (prev_header_empty)
-				warnx("A lone zero block at %d", header_count - 1);
-
-			// break on both missing (since that's fine)
+				warnx("A lone zero block at %d", lr_count);
 			break;
 		}
+		else if (read != LR_SIZE)
+			errx(2, "Block %d incomplete, exiting", lr_count);
+
+		lr_count++;
 
 		// check magic bits of the first logical record
 		if (first_record) {
@@ -203,9 +188,8 @@ int main(int argc, char *argv[]) {
 			first_record = false;
 		}
 
-		// check for empty/non-empty header
 		if (is_header_empty(header)) {
-			// break on two empty logical records in a row
+			// break on two empty LRs in a row
 			if (prev_header_empty)
 				break;
 
@@ -215,7 +199,7 @@ int main(int argc, char *argv[]) {
 		else {
 			// warn if the previous logical record was zero
 			if (prev_header_empty)
-				warnx("A lone zero block at %d", header_count);
+				warnx("A lone zero block at %d", lr_count);
 
 			prev_header_empty  = false;
 		}
@@ -231,19 +215,18 @@ int main(int argc, char *argv[]) {
 			|| file_in_pargs(pargs_counter, pargs, used_pargs, header->name)
 		);
 
-		// only print the name if either -t or verbose -x is specified
 		if (name_found && (action == list || (action == extract && verbose)))
 			printf("%s\n", header->name);
 
-		// get the number of logical records in the file (to skip or write)
+		// get the number of logical records in the file
 		int header_size = oct_to_int(header->size, SIZE_OCTETS);
 		long int header_offset = (header_size + (LR_SIZE - 1)) / LR_SIZE;
-		header_count += header_offset;
+		lr_count += header_offset;
 
 		if (action == list) {
 			fseek_with_error(fp, header_offset * LR_SIZE, SEEK_CUR);
 
-			// check if we didn't accidentaly seek past the file size
+			// check if we didn't accidentaly seek past the end of the file
 			if (ftell(fp) > fs) {
 				warnx("Unexpected EOF in archive");
 				errx(2, "Error is not recoverable: exiting now");
@@ -251,10 +234,10 @@ int main(int argc, char *argv[]) {
 		}
 		else if (action == extract) {
 			FILE *fout = fopen(header->name, "w");
-
-			// read from *fp LR_SIZE by LR_SIZE
 			char* buffer = malloc_with_error(sizeof(char*) * LR_SIZE);
 
+			// read from *fp, one LR_SIZE at a time
+			// should be IO-friendly-enough
 			for (int i = 0; i < header_offset; i++) {
 				int read = fread(buffer, sizeof(char), LR_SIZE, fp);
 
@@ -271,15 +254,14 @@ int main(int argc, char *argv[]) {
 	}
 	
 	// check, if we found all filenames in the archive
-	bool found = false;
+	bool found = true;
 	for (int i = 0; i < pargs_counter; i++) {
 		if (used_pargs[i] == 0) {
 			warnx("%s: Not found in archive", pargs[i]);
-			found = true;
+			found = false;
 		}
 	}
 
-	// if not, report errors and exit
-	if (found)
+	if (!found)
 		errx(2, "Exiting with failure status due to previous errors");
 }
