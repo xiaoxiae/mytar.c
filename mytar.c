@@ -82,8 +82,8 @@ int get_file_size(FILE *fp) {
 }
 
 /* Return 1 and mark the file in the pargs */
-int file_in_pargs(int pargs_counter, char** pargs, int* used_pargs, char* name) {
-	for (int i = 0; i < pargs_counter; i++)
+int file_in_pargs(int pargs_count, char** pargs, int* used_pargs, char* name) {
+	for (int i = 0; i < pargs_count; i++)
 		if (strcmp(name, pargs[i]) == 0 && !used_pargs[i])
 			return (used_pargs[i] = 1);
 	return 0;
@@ -105,7 +105,7 @@ int main(int argc, char *argv[]) {
 		errx(2, "invalid invocation.");
 
 	// plain arguments variables
-	int pargs_counter = 0;
+	int pargs_count = 0;
 	char** pargs = malloc_with_error(sizeof(char*) * argc);
 
 	// information regarding tar options
@@ -118,30 +118,30 @@ int main(int argc, char *argv[]) {
 		if (argv[i][0] == '-') {
 			switch(argv[i][1]) {
 				case 'f':
-					if (i + 1 == argc)
-						errx(2, "option requires an argument -- 'f'");
+				if (i + 1 == argc)
+					errx(2, "option requires an argument -- 'f'");
 
-					file = argv[++i];
-					break;
+				file = argv[++i];
+				break;
 
 				case 't':
-					action = list;
-					break;
+				action = list;
+				break;
 
 				case 'x':
-					action = extract;
-					break;
+				action = extract;
+				break;
 
 				case 'v':
-					verbose = true;
-					break;
+				verbose = true;
+				break;
 
 				default:
-					errx(2, "flag %s not recognized.", argv[i]);
+				errx(2, "flag %s not recognized.", argv[i]);
 			}
 		}
 		else
-			pargs[pargs_counter++] = argv[i];
+			pargs[pargs_count++] = argv[i];
 	}
 
 	if (action == none)
@@ -159,8 +159,8 @@ int main(int argc, char *argv[]) {
 	bool prev_header_empty  = false;  // whether the LR was empty
 	int lr_count = 0;                 // number of read records
 
-	// remember which file names were in the archive and which were not (for warnings)
-	int* used_pargs = calloc_with_error(pargs_counter, sizeof(int));
+	// remember which file names were in the archive and which were not
+	int* used_pargs = calloc_with_error(pargs_count, sizeof(int));
 	
 	struct Header* header = malloc_with_error(sizeof(char) * LR_SIZE);
 	while (true) {
@@ -196,13 +196,11 @@ int main(int argc, char *argv[]) {
 			prev_header_empty = true;
 			continue;
 		}
-		else {
-			// warn if the previous logical record was zero
-			if (prev_header_empty)
-				warnx("A lone zero block at %d", lr_count);
 
-			prev_header_empty  = false;
-		}
+		// warn if the previous logical record was zero
+		if (prev_header_empty)
+			warnx("A lone zero block at %d", lr_count);
+		prev_header_empty = false;
 
 		// exit if the archive contains anything but regular files
 		if (header->typeflag[0] != '0')
@@ -211,8 +209,8 @@ int main(int argc, char *argv[]) {
 		// if there are either no pargs or the file is one of them, do something
 		// with the file (print, extract...)
 		bool name_found = (
-			pargs_counter == 0
-			|| file_in_pargs(pargs_counter, pargs, used_pargs, header->name)
+			pargs_count == 0
+			|| file_in_pargs(pargs_count, pargs, used_pargs, header->name)
 		);
 
 		if (name_found && (action == list || (action == extract && verbose)))
@@ -255,7 +253,7 @@ int main(int argc, char *argv[]) {
 	
 	// check, if we found all filenames in the archive
 	bool found = true;
-	for (int i = 0; i < pargs_counter; i++) {
+	for (int i = 0; i < pargs_count; i++) {
 		if (used_pargs[i] == 0) {
 			warnx("%s: Not found in archive", pargs[i]);
 			found = false;
